@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# build the initial image
+bin/build
+
+# create the cluster
+kind create cluster --name demo-simple
+
+# upload the image
+bin/upload
+
+# create a namespace
+kubectl create namespace demo

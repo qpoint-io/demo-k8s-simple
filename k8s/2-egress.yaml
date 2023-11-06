@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  initContainers:
+    - name: init-egress
+      image: us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-init:sha-b2640d3
+      command: 
+        - sh
+        - -c
+        - |
+          iptables -t nat -A OUTPUT -p tcp --dport "443" -j DNAT --to-destination "10.96.238.192:10000"
+          iptables -t nat -L -n -v
+      securityContext:
+        capabilities:
+          add:
+            - NET_ADMIN
+
+  containers:
+    - name: app
+      image: qpoint-demo-simple
+      imagePullPolicy: Never

@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-ca-configmap
+data:
+  build-ca.sh: |
+    #!/usr/bin/env sh
+
+    # certificate authority bundles for common distributions
+    bundles="
+    /etc/ssl/certs/ca-certificates.crt \
+    /etc/pki/tls/certs/ca-bundle.crt \
+    /etc/ssl/ca-bundle.pem \
+    /etc/pki/tls/cacert.pem \
+    /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+    /etc/ssl/cert.pem
+    "
+
+    # qpoint ca
+    qpoint_ca="/mnt/ca/qpoint.pem"
+
+    # tls config destination
+    destination="/mnt/tls"
+
+    # initialize a flag to check if config was copied
+    config_copied="no"
+
+    # convert string to an array-like structure
+    set -- $bundles
+
+    # iterate over the possible bundles
+    for bundle; do
+      if [ -f "$bundle" ]; then
+        echo "Found ca bundle: ${bundle}"
+
+        # extract the directly/file from the bundle
+        directory=$(dirname "$bundle")
+        file=$(basename "$bundle")
+
+        # copy the contents of the bundle into the shared mount
+        echo "Copying contents of $directory to $destination"
+        cp -R "$directory"/* "$destination"
+
+        # append the qpoint root ca
+        cat "$qpoint_ca" >> "$destination/$file"
+
+        # leave the breadcrumb
+        config_copied="yes"
+
+        # stop after the first found bundle
+        break
+      fi
+    done
+
+    # we didn't find a matching config, likely there is no openssl installed
+    # 
+    # in this case our approach is to just add our ca to all of the bundles
+    # for the potential distributions
+    if [ "$config_copied" = "no" ]; then
+      echo "No config copied, creating new CA bundles."
+      set -- $bundles
+      for bundle; do
+        file=$(basename "$bundle")
+        cat "$qpoint_ca" > "$destination/$file"
+      done
+    fi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qpoint-ca-configmap
+data:
+  qpoint.pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIE8zCCAtugAwIBAgIBATANBgkqhkiG9w0BAQsFADA0MTIwMAYDVQQDEylRcG9p
+    bnQgUm9vdCBDQSwgb3JnOiBzaGpZcWpUSHZBell3T3JmQ1pEdzAeFw0yMzExMDMx
+    OTUzMDFaFw0yNDExMDMxOTUzMDFaMDQxMjAwBgNVBAMTKVFwb2ludCBSb290IENB
+    LCBvcmc6IHNoallxalRIdkF6WXdPcmZDWkR3MIICIjANBgkqhkiG9w0BAQEFAAOC
+    Ag8AMIICCgKCAgEApRmJFQkZxRsBZbAvadoZHwWB2Rl8vu+EfZ2hgojNd217gjoN
+    /eKQtitnp2eBYA6M5n7DeD2zHZPnAcwzuVQJovpnKlSfFFJH6CtsO/TJJxCSJOa+
+    Z3xeQODHyBrNIskk3qLmaAK/zgvuDwkiWN+KX7V9Vmv/Z4QDjEPPYWlu8n0bJ/Sh
+    r3FN4aPzyiMU8xSMPSAlHYmrsfyuxhIFhkbZS63FgCEg0UhP1+39cT9dolHt6ezl
+    M/aIe6SQzjicwo+VzJ+LVi4jiaornbLFH+js3PD4uhfsGsAvDSJ2YKdnw+/8DZBm
+    u6jwFA6fB1SBdtDKtsDH/h0uNJ4UVc/0un8egjRAsgtLGlS1nbCCc3XwaOgEHQ+/
+    Llbmc+XtuXrbupcCrV0YprPVZCXeS5yTmLIt0+KN18nsbfcKbuXegMs8fsh28tHq
+    r7b1YDoSmTxzWiO8xzF9OFTvFZ8Z4ponKPBQ92kqv4Dp3pvhjCYP4nZmnPoiwApu
+    knzFwitwHZ1VmPGGx9e9KHjHa5Eqf6xwFAG6lBdQpakovgeNBtASvDCWHD7ysjxX
+    0GWvriuWrzOFXw0Eh5SH8dUsxlcIblt5B4k6Wi8fLH0nsvKLaddIYjxgXcq2v5vh
+    /lkQHmRFNwBnpqbXo48u0ARwPvq5nYKEOGWUfzT7gK7EMAmEG3H9s8ITsXkCAwEA
+    AaMQMA4wDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEAPfl7FR+al6NY
+    lxzZV3YQtDgky8EyXp9DaZtxLGxsUHPeSppmhr9hQq2LKyELn4kLbe8N9lWU77bJ
+    0dpO9q9Tr2Y78PcUzGRqCBhF4hhYK/hd/W1hrhiHrMkoeCKYFUspj7MxA3hQEZDo
+    ScqoS13PxjG8oOEJbiWuaQme5Yky0qaVFctEVUdSnG7IEWky9BqeCRDFNkZoMbzd
+    wbAJY34EzTkv9NPz0oBr0oI8GN90XXnDRw04+3oh9enuK2GAFCA7/NiJvPPSoGed
+    fMXOmqoZ9xDJ8UoWZozpzLTCBfLmV04wg/V7leKOWGGDMS/SE+V/NL7X271yjJB0
+    9aHUlPU7ZQ5Gq8wqL2V2s44v7Tu+wh8RWKJqw8Izimgw4GHe48NO9aOGMT59s+gq
+    CvoTJp7isfGmbwZelzSYCv3LT2YNGTz5ilIH+Lw6TVflpBuvT+AVrrIi82+ZcoEh
+    3HgIpPt0nbvTMayrs3/E38G0VezUqq5Jtn+Hl/VXbiNB4PoQkhN+St7ACw5LMuHC
+    qT/I+B5gW431vOaPbeD+mY0E0yMN4TCKq3VYAtKjEG4yFz+WseYZsJQU9wbNXyVx
+    FhzM3HmTMq3XqAFnAFMRDAS8NZEY6O+HLV0V/eGyEz7m2P/E3MEPj4aBqbDjUA30
+    9K154+CoDAXnUPNuzCS1rAfM+P39upE=
+    -----END CERTIFICATE----- 
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  initContainers:
+    # route egress
+    - name: init-egress
+      image: us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-init:sha-b2640d3
+      command: 
+        - sh
+        - -c
+        - |
+          iptables -t nat -A OUTPUT -p tcp --dport "443" -j DNAT --to-destination "10.96.238.192:10000"
+          iptables -t nat -L -n -v
+      securityContext:
+        capabilities:
+          add:
+            - NET_ADMIN
+    # inject certificate authority
+    - name: add-ca
+      image: qpoint-demo-simple
+      imagePullPolicy: Never
+      command: ["/bin/sh", "/usr/local/bin/build-ca.sh"]
+      volumeMounts:
+        - name: qpoint-ca-volume
+          mountPath: /mnt/ca
+        - name: tls-config-volume
+          mountPath: /mnt/tls
+        - name: build-ca-volume
+          mountPath: /usr/local/bin/build-ca.sh
+          subPath: build-ca.sh
+
+  containers:
+    - name: app
+      image: qpoint-demo-simple
+      imagePullPolicy: Never
+      volumeMounts:
+        - name: tls-config-volume
+          mountPath: /etc/ssl
+        - name: tls-config-volume
+          mountPath: /etc/ssl/certs
+        - name: tls-config-volume
+          mountPath: /etc/pki/tls
+        - name: tls-config-volume
+          mountPath: /etc/pki/tls/certs
+        - name: tls-config-volume
+          mountPath: /etc/pki/ca-trust/extracted/pem
+
+  volumes:
+    - name: qpoint-ca-volume
+      configMap:
+        name: qpoint-ca-configmap
+    - name: tls-config-volume
+      emptyDir: {}
+    - name: build-ca-volume
+      configMap:
+        name: build-ca-configmap
+        defaultMode: 0755

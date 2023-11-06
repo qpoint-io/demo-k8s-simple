@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+docker build -t qpoint-demo-simple:latest .

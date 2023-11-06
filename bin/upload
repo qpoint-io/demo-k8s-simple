@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+kind load docker-image qpoint-demo-simple:latest --name demo-simple
